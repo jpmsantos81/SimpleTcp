@@ -84,10 +84,7 @@ public class ClienteTcp<T> : IDisposable
         {
             await _cliente.GetStream().WriteAsync(bytes, 0, bytes.Length);
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Erro ao enviar Pacote:\n{ex.Message}");
-        }
+        catch { }
     }
 
     private void ProcessarPacote(string json, TcpClient cliente)
