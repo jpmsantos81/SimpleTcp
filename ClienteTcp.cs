@@ -40,7 +40,6 @@ public class ClienteTcp<T> : IDisposable
         }
         catch
         {
-            Debug.WriteLine("Erro ao conectar ao servidor.");
             return false;
         }
     }
