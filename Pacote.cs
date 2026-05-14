@@ -18,7 +18,6 @@
         public Subtipos Subtipo { get; set; }
         public string IdAutor { get; set; } = null!;
         public string IdDestino { get; set; } = null!;
-        public string MensagemTexto { get; set; } = string.Empty;
         public T? Conteudo { get; set; }
     }
 }
