@@ -4,6 +4,19 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-  </PropertyGroup>
 
+	  <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+	  
+	  <PackageId>Jpmsantos81.SimpleTcp</PackageId>
+	  <RootNamespace>Jpmsantos81.SimpleTcp</RootNamespace>
+	  <AssemblyName>Jpmsantos81.SimpleTCp</AssemblyName>
+	  
+	  <Version>1.0.0</Version>
+	  <Authors>Jpmsantos81</Authors>
+	  <Description>Uma biblioteca que facilita uma conexão TCP de forma simples</Description>
+
+	  <PackageTags>tcp;network;socket;csharp;server;client;async;dotnet;lan</PackageTags>
+	  
+  </PropertyGroup>
+	
 </Project>

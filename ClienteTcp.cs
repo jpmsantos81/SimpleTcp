@@ -3,18 +3,18 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 
-namespace SimpleTcp;
+namespace Jpmsantos81.SimpleTcp;
 
-public class ClienteTcp<T> : IDisposable
+internal class ClienteTcp<T> : IDisposable
 {
-    private TcpManager<T> _tcpManager = null!;
+    private GerenciadorTcp<T> _tcpManager = null!;
 
     private TcpClient _cliente = new();
     private string _delimitador;
     public string Id { get; set; }
     private string? _idServidor;
 
-    public ClienteTcp(TcpManager<T> tcpManager)
+    public ClienteTcp(GerenciadorTcp<T> tcpManager)
     {
         _tcpManager = tcpManager;
 

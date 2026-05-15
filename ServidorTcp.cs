@@ -4,11 +4,11 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 
-namespace SimpleTcp;
+namespace Jpmsantos81.SimpleTcp;
 
 internal class ServidorTcp<T> : IDisposable
 {
-    private TcpManager<T> _tcpManager;
+    private GerenciadorTcp<T> _tcpManager;
     private string _delimitador;
     private TcpListener _listener = null!;
     public string Id { get; set; }
@@ -16,7 +16,7 @@ internal class ServidorTcp<T> : IDisposable
     public ConcurrentDictionary<string, TcpClient> Clientes = new();
     private Action<T> _processarPacoteCallback;
 
-    public ServidorTcp(TcpManager<T> tcpManager)
+    public ServidorTcp(GerenciadorTcp<T> tcpManager)
     {
         _tcpManager = tcpManager;
 

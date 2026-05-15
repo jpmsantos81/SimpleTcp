@@ -1,4 +1,4 @@
-﻿namespace SimpleTcp
+﻿namespace Jpmsantos81.SimpleTcp
 {
     internal class Pacote<T>
     {
