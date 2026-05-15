@@ -16,7 +16,28 @@
 	  <Description>Uma biblioteca que facilita uma conexão TCP de forma simples</Description>
 
 	  <PackageTags>tcp;network;socket;csharp;server;client;async;dotnet;lan</PackageTags>
+
+	  <Company>Jpmsantos81</Company>
+
+	  <Title>SimpleTcp</Title>
+
+	  <RepositoryUrl>https://github.com/jpmsantos81/SimpleTcp</RepositoryUrl>
+
+	  <RepositoryType>git</RepositoryType>
+
+	  <NeutralLanguage>pt-BR</NeutralLanguage>
+
+	  <IncludeSymbols>True</IncludeSymbols>
+
+	  <PackageReadmeFile>README.md</PackageReadmeFile>
 	  
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
 	
 </Project>
