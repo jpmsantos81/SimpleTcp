@@ -16,7 +16,7 @@ internal class ServidorTcp<T> : IDisposable
     public ConcurrentDictionary<string, TcpClient> Clientes = new();
     private Action<T> _processarPacoteCallback;
 
-    public ServidorTcp(GerenciadorTcp<T> tcpManager)
+    internal ServidorTcp(GerenciadorTcp<T> tcpManager)
     {
         _tcpManager = tcpManager;
 
@@ -25,7 +25,7 @@ internal class ServidorTcp<T> : IDisposable
         _processarPacoteCallback = _tcpManager.CallBack;
     }
 
-    public bool Iniciar(int porta)
+    internal bool Iniciar(int porta)
     {
         _listener = new TcpListener(IPAddress.IPv6Any, porta);
         _listener.Server.DualMode = true;
@@ -41,15 +41,17 @@ internal class ServidorTcp<T> : IDisposable
         _ = LoopAceitarClientesAsync();
         return true;
     }
-    public async Task EnviarPacote(Pacote<T> pacote)
+    internal async Task<bool> EnviarPacote(Pacote<T> pacote)
     {
         string json = JsonSerializer.Serialize(pacote) + _delimitador;
         byte[] bytes = Encoding.UTF8.GetBytes(json);
-
-        var stream = Clientes[pacote.IdDestino].GetStream();
+        Clientes.TryGetValue(pacote.IdDestino, out TcpClient? cliente);
+        if (cliente == null) return false;
+        var stream = cliente.GetStream();
         await stream.WriteAsync(bytes, 0, bytes.Length);
+        return true;
     }
-    public async Task EnviarPacoteParaTodos(Pacote<T> pacote)
+    internal async Task EnviarPacoteParaTodos(Pacote<T> pacote)
     {
         string json = JsonSerializer.Serialize(pacote) + _delimitador;
         byte[] bytes = Encoding.UTF8.GetBytes(json);
@@ -178,6 +180,7 @@ internal class ServidorTcp<T> : IDisposable
             IdAutor = Id
         };
         _ = EnviarPacoteParaTodos(pacoteRespostaDeslogar);
+        _tcpManager.Servidor = null!;
         _listener.Stop();
     }
 }

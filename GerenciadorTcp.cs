@@ -3,8 +3,8 @@
     public class GerenciadorTcp<T> : IDisposable
     {
         public readonly string Delimitador;
-        private ClienteTcp<T> Cliente { get;  set; } = null!;
-        private ServidorTcp<T> Servidor { get; set; } = null!;
+        internal ClienteTcp<T> Cliente { get; set; } = null!;
+        internal ServidorTcp<T> Servidor { get; set; } = null!;
         internal Action<T> CallBack { get; private set; }
         public string Id { get; private set; }
 
@@ -19,8 +19,8 @@
         {
             if (Cliente != null) return false;
             if (Servidor != null)
-            { 
-                Servidor.Dispose(); 
+            {
+                Servidor.Dispose();
                 Servidor = null!;
             }
 
@@ -49,11 +49,73 @@
         }
         public void Dispose()
         {
-            Cliente.Dispose(); 
+            Cliente.Dispose();
             Cliente = null!;
 
             Servidor.Dispose();
             Servidor = null!;
+        }
+        public async Task<bool> ServidorEnviarParaClienteAsync(string idCliente, T conteudo)
+        {
+            if (Servidor != null)
+            {
+                var pacote = new Pacote<T>
+                {
+                    Tipo = Pacote<T>.Tipos.ParaCliente,
+                    Subtipo = Pacote<T>.Subtipos.Comando,
+                    IdAutor = Id,
+                    IdDestino = idCliente,
+                    Conteudo = conteudo
+                };
+                return await Servidor.EnviarPacote(pacote);
+            }
+            return false;
+        }
+
+        public async Task ServidorEnviarParaTodosAsync(T conteudo)
+        {
+            if (Servidor != null)
+            {
+                var pacote = new Pacote<T>
+                {
+                    Tipo = Pacote<T>.Tipos.ParaCliente,
+                    Subtipo = Pacote<T>.Subtipos.Comando,
+                    IdAutor = Id,
+                    Conteudo = conteudo
+                };
+                await Servidor.EnviarPacoteParaTodos(pacote);
+            }
+        }
+        public async Task<bool> ClienteEnviarParaServidorAsync(T conteudo)
+        {
+            if (Cliente != null)
+            {
+                var pacote = new Pacote<T>
+                {
+                    Tipo = Pacote<T>.Tipos.ParaServer,
+                    Subtipo = Pacote<T>.Subtipos.Comando,
+                    IdAutor = Id,
+                    Conteudo = conteudo
+                };
+                return await Cliente.EnviarAsync(pacote);
+            }
+            return false;
+        }
+        public async Task<bool> ClienteEnviarParaOutroClienteAsync(string idDestino, T conteudo)
+        {
+            if (Cliente != null)
+            {
+                var pacote = new Pacote<T>
+                {
+                    Tipo = Pacote<T>.Tipos.ParaCliente,
+                    Subtipo = Pacote<T>.Subtipos.Comando,
+                    IdAutor = Id,
+                    IdDestino = idDestino,
+                    Conteudo = conteudo
+                };
+                return await Cliente.EnviarAsync(pacote);
+            }
+            return false;
         }
     }
 }

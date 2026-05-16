@@ -11,10 +11,10 @@ internal class ClienteTcp<T> : IDisposable
 
     private TcpClient _cliente = new();
     private string _delimitador;
-    public string Id { get; set; }
-    private string? _idServidor;
+    internal string Id { get; set; }
+    internal string? _idServidor;
 
-    public ClienteTcp(GerenciadorTcp<T> tcpManager)
+    internal ClienteTcp(GerenciadorTcp<T> tcpManager)
     {
         _tcpManager = tcpManager;
 
@@ -73,18 +73,15 @@ internal class ClienteTcp<T> : IDisposable
         }
     }
 
-    private async Task EnviarAsync(Pacote<T> pacote)
+    internal async Task<bool> EnviarAsync(Pacote<T> pacote)
     {
-        if (!_cliente.Connected) return;
+        if (!_cliente.Connected) return false;
 
         string json = JsonSerializer.Serialize(pacote) + _delimitador;
         byte[] bytes = Encoding.UTF8.GetBytes(json);
 
-        try
-        {
-            await _cliente.GetStream().WriteAsync(bytes, 0, bytes.Length);
-        }
-        catch { }
+        await _cliente.GetStream().WriteAsync(bytes, 0, bytes.Length);
+        return true;
     }
 
     private void ProcessarPacote(string json, TcpClient cliente)
@@ -131,6 +128,7 @@ internal class ClienteTcp<T> : IDisposable
             };
             _ = EnviarAsync(msg);
         }
+        _tcpManager.Cliente = null!;
         _cliente.Close();
     }
 }
