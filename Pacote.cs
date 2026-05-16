@@ -1,23 +1,22 @@
 ﻿namespace Jpmsantos81.SimpleTcp
 {
-    internal class Pacote<T>
+    internal class Pacote
     {
-        public enum Tipos
+        internal enum Tipos
         {
             ParaServer = 0,
-            ParaCliente = 1,
-            ParaSistema = 2
+            ParaCliente = 1
         }
-        public enum Subtipos
+        internal enum Subtipos
         {
             Logar = 0,
             Deslogar = 1,
             Comando = 2
         }
-        public Tipos Tipo { get; set; }
-        public Subtipos Subtipo { get; set; }
-        public string IdAutor { get; set; } = null!;
-        public string IdDestino { get; set; } = null!;
-        public T? Conteudo { get; set; }
+        internal Tipos Tipo { get; set; }
+        internal Subtipos Subtipo { get; set; }
+        internal string IdAutor { get; set; } = null!;
+        internal string IdDestino { get; set; } = null!;
+        internal object? Conteudo { get; set; }
     }
 }

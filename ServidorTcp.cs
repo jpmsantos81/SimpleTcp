@@ -6,54 +6,112 @@ using System.Text.Json;
 
 namespace Jpmsantos81.SimpleTcp;
 
-internal class ServidorTcp<T> : IDisposable
+public class ServidorTcp : IDisposable
 {
-    private GerenciadorTcp<T> _tcpManager;
-    private string _delimitador;
+    private event Action<string>? AoLogarEvent;
+    private event Action<string>? AoDeslogarEvent;
+    private EventController _events = new();
+
     private TcpListener _listener = null!;
-    public string Id { get; set; }
+    private Action<object> _callback { get; }
+    public ListaClientes Clientes { get; } = new();
+    public string Delimitador { get; }
+    public string Id { get; }
+    public int Porta { get; private set; }
 
-    public ConcurrentDictionary<string, TcpClient> Clientes = new();
-    private Action<T> _processarPacoteCallback;
-
-    internal ServidorTcp(GerenciadorTcp<T> tcpManager)
+    public ServidorTcp(Action<object> callback, string id = "", string delimitador = "<EOF>")
     {
-        _tcpManager = tcpManager;
-
-        Id = _tcpManager.Id;
-        _delimitador = _tcpManager.Delimitador;
-        _processarPacoteCallback = _tcpManager.CallBack;
+        _callback = callback;
+        Id = string.IsNullOrEmpty(id) ? Guid.NewGuid().ToString() : id;
+        Delimitador = string.IsNullOrEmpty(delimitador) ? "<EOF>" : delimitador;
     }
 
-    internal bool Iniciar(int porta)
+    public bool Iniciar(int porta)
     {
+        if (porta < 0 || porta > 65535 || _listener != null) return false;
+
         _listener = new TcpListener(IPAddress.IPv6Any, porta);
         _listener.Server.DualMode = true;
 
         try
         {
             _listener.Start();
+            _ = LoopAceitarClientesAsync();
         }
-        catch 
+        catch (Exception ex)
         {
-            return false; 
+            _listener?.Stop();
+            _listener?.Dispose();
+            _listener = null!;
+            throw new InvalidOperationException($"Não foi possível iniciar o servidor na porta {porta}. Verifique se a porta está disponível e tente novamente.", ex); 
         }
-        _ = LoopAceitarClientesAsync();
+        Porta = porta;
         return true;
     }
-    internal async Task<bool> EnviarPacote(Pacote<T> pacote)
+    public async Task<bool> EnviarParaClienteAsync(string idCliente, object conteudo)
     {
-        string json = JsonSerializer.Serialize(pacote) + _delimitador;
+        var pacote = new Pacote
+        {
+            Tipo = Pacote.Tipos.ParaCliente,
+            Subtipo = Pacote.Subtipos.Comando,
+            IdAutor = Id,
+            IdDestino = idCliente,
+            Conteudo = conteudo
+        };
+        return await EnviarPacoteAsync(pacote);
+    }
+
+    public async Task EnviarParaTodosAsync(object conteudo)
+    {
+        var pacote = new Pacote
+        {
+            Tipo = Pacote.Tipos.ParaCliente,
+            Subtipo = Pacote.Subtipos.Comando,
+            IdAutor = Id,
+            Conteudo = conteudo
+        };
+        await EnviarPacoteParaTodosAsync(pacote);
+    }
+
+    public void AoLogar(Action<string> idAoLogar) => _events.Vincular(
+        () => { AoLogarEvent += idAoLogar; },
+        () => { AoLogarEvent -= idAoLogar; }
+    );
+    public void AoDeslogar(Action<string> idAoDeslogar) => _events.Vincular(
+        () => { AoDeslogarEvent += idAoDeslogar; },
+        () => { AoDeslogarEvent -= idAoDeslogar; }
+    );
+
+    public void Dispose()
+    {
+        Pacote pacoteRespostaDeslogar = new()
+        {
+            Tipo = Pacote.Tipos.ParaCliente,
+            Subtipo = Pacote.Subtipos.Deslogar,
+            IdAutor = Id
+        };
+        _ = EnviarPacoteParaTodosAsync(pacoteRespostaDeslogar);
+        AoDeslogarEvent?.Invoke(Id);
+        Clientes.ClearAndDisposeAll();
+        _events.Desvincular();
+        _listener.Stop();
+        _listener = null!;
+    }
+
+    internal async Task<bool> EnviarPacoteAsync(Pacote pacote)
+    {
+        string json = JsonSerializer.Serialize(pacote) + Delimitador;
         byte[] bytes = Encoding.UTF8.GetBytes(json);
         Clientes.TryGetValue(pacote.IdDestino, out TcpClient? cliente);
         if (cliente == null) return false;
+
         var stream = cliente.GetStream();
         await stream.WriteAsync(bytes, 0, bytes.Length);
         return true;
     }
-    internal async Task EnviarPacoteParaTodos(Pacote<T> pacote)
+    internal async Task EnviarPacoteParaTodosAsync(Pacote pacote)
     {
-        string json = JsonSerializer.Serialize(pacote) + _delimitador;
+        string json = JsonSerializer.Serialize(pacote) + Delimitador;
         byte[] bytes = Encoding.UTF8.GetBytes(json);
 
         foreach (var cliente in Clientes.Values)
@@ -65,6 +123,7 @@ internal class ServidorTcp<T> : IDisposable
 
     private async Task LoopAceitarClientesAsync()
     {
+        if(_listener == null) throw new InvalidOperationException("O servidor não foi iniciado. Chame Iniciar(porta) antes de aceitar clientes.");
         while (true)
         {
             TcpClient cliente = await _listener.AcceptTcpClientAsync();
@@ -83,20 +142,19 @@ internal class ServidorTcp<T> : IDisposable
             int bytesLidos = await stream.ReadAsync(buffer, 0, buffer.Length);
             if (bytesLidos == 0)
             {
-                Clientes.TryRemove(Clientes.FirstOrDefault(c => c.Value == cliente).Key, out var _);
-                cliente.Close();
+                Clientes.TryRemove(Clientes.AsReadOnly.FirstOrDefault(c => c.Value == cliente).Key, out var _);
                 return;
             }
             string textoRecebido = Encoding.UTF8.GetString(buffer, 0, bytesLidos);
             acumulador.Append(textoRecebido);
 
             string textoAcumulado = acumulador.ToString();
-            while (textoAcumulado.Contains(_delimitador))
+            while (textoAcumulado.Contains(Delimitador))
             {
-                int finalDoJson = textoAcumulado.IndexOf(_delimitador);
+                int finalDoJson = textoAcumulado.IndexOf(Delimitador);
                 string json = textoAcumulado[..finalDoJson];
                 ProcessarPacote(json, cliente);
-                textoAcumulado = textoAcumulado[(finalDoJson + _delimitador.Length)..];
+                textoAcumulado = textoAcumulado[(finalDoJson + Delimitador.Length)..];
             }
             acumulador.Clear();
             acumulador.Append(textoAcumulado);
@@ -105,82 +163,78 @@ internal class ServidorTcp<T> : IDisposable
 
     private void ProcessarPacote(string json, TcpClient cliente)
     {
-        int idx = json.IndexOf(_delimitador);
+        int idx = json.IndexOf(Delimitador);
         string jsonPronto;
-        Pacote<T>? pacote;
+        Pacote? pacote;
 
         if (idx > 0) jsonPronto = json[..idx];
         else jsonPronto = json;
 
-        try { pacote = JsonSerializer.Deserialize<Pacote<T>>(jsonPronto); }
-        catch { return; }
+        try { pacote = JsonSerializer.Deserialize<Pacote>(jsonPronto); }
+        catch (Exception ex)
+        { 
+            throw new InvalidOperationException(
+                $"O servidor recebeu um pacote com formato inválido: '{jsonPronto}'. Verifique se o cliente está enviando os dados corretamente e tente novamente.",
+                ex
+            );
+        }
 
         if (pacote == null) return;
 
-        if (pacote.Tipo == Pacote<T>.Tipos.ParaServer)
+        if (pacote.Tipo == Pacote.Tipos.ParaServer)
         {
             switch (pacote.Subtipo)
             {
-                case (Pacote<T>.Subtipos.Logar):
+                case (Pacote.Subtipos.Logar):
                     Clientes.TryAdd(pacote.IdAutor, cliente);
 
-                    Pacote<T> pacoteResposta = new()
+                    Pacote pacoteResposta = new()
                     {
-                        Tipo = Pacote<T>.Tipos.ParaServer,
-                        Subtipo = Pacote<T>.Subtipos.Logar,
+                        Tipo = Pacote.Tipos.ParaCliente,
+                        Subtipo = Pacote.Subtipos.Logar,
                         IdAutor = Id,
                         IdDestino = pacote.IdAutor
                     };
-                    _ = EnviarPacote(pacoteResposta);
+                    _ = EnviarPacoteAsync(pacoteResposta);
+                    AoLogarEvent?.Invoke(pacote.IdAutor);
                     break;
 
-                case (Pacote<T>.Subtipos.Deslogar):
-                    Pacote<T> pacoteRespostaDeslogar = new()
+                case (Pacote.Subtipos.Deslogar):
+                    Pacote pacoteRespostaDeslogar = new()
                     {
-                        Tipo = Pacote<T>.Tipos.ParaCliente,
-                        Subtipo = Pacote<T>.Subtipos.Deslogar,
+                        Tipo = Pacote.Tipos.ParaCliente,
+                        Subtipo = Pacote.Subtipos.Deslogar,
                         IdAutor = Id,
                         IdDestino = pacote.IdAutor
                     };
-                    _ = EnviarPacote(pacoteRespostaDeslogar);
+                    AoDeslogarEvent?.Invoke(pacote.IdDestino);
+
+                    _ = EnviarPacoteAsync(pacoteRespostaDeslogar);
                     Clientes.TryRemove(pacote.IdAutor, out var _);
-                    cliente.Close();
+                    cliente?.Close();
+                    break;
+
+                case (Pacote.Subtipos.Comando):
+                    _callback(pacote.Conteudo!);
                     break;
             }
         }
-        else if(pacote.Tipo == Pacote<T>.Tipos.ParaCliente)
+        else if(pacote.Tipo == Pacote.Tipos.ParaCliente)
         {
             switch (pacote.Subtipo)
             {
-
-                case Pacote<T>.Subtipos.Comando:
-                    Pacote<T> pacoteResposta = new()
+                case Pacote.Subtipos.Comando:
+                    Pacote pacoteResposta = new()
                     {
-                        Tipo = Pacote<T>.Tipos.ParaCliente,
-                        Subtipo = Pacote<T>.Subtipos.Comando,
+                        Tipo = Pacote.Tipos.ParaCliente,
+                        Subtipo = Pacote.Subtipos.Comando,
                         IdAutor = pacote.IdAutor,
                         IdDestino = pacote.IdDestino,
                         Conteudo = pacote.Conteudo
                     };
-                    _ = EnviarPacote(pacoteResposta);
+                    _ = EnviarPacoteAsync(pacoteResposta);
                     break;
             }
          }
-        else
-        {
-            _processarPacoteCallback(pacote.Conteudo!);
-        }
-    }
-    public void Dispose()
-    {
-        Pacote<T> pacoteRespostaDeslogar = new()
-        {
-            Tipo = Pacote<T>.Tipos.ParaCliente,
-            Subtipo = Pacote<T>.Subtipos.Deslogar,
-            IdAutor = Id
-        };
-        _ = EnviarPacoteParaTodos(pacoteRespostaDeslogar);
-        _tcpManager.Servidor = null!;
-        _listener.Stop();
     }
 }
