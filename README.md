@@ -10,7 +10,7 @@ Ela é projetada para ser fácil de usar, permitindo que os desenvolvedores crie
 1. Adicione a biblioteca SimpleTcp ao seu projeto.
 2. Crie uma instância do cliente TCP e conecte-se ao servidor.
 3. Envie e receba dados (instâncias de objetos que sejam serializáveis) usando os métodos fornecidos pela biblioteca.
-4. Crie métodos para lidar com os objetos recebidos de forma personalizada.
+4. Use os métodos que vinculam ações com eventos para lidar com conexões, desconexões e recebimento de dados.
 ## Nome das Classes publicas
 - ClienteTCP
 - ServidorTCP

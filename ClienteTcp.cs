@@ -5,19 +5,20 @@ using System.Text.Json;
 
 namespace Jpmsantos81.SimpleTcp;
 
-public class ClienteTcp : IDisposable
+public class ClienteTcp
 { 
     private TcpClient _cliente = new();
+    private EventController _events = new();
     public string Ip {  get; private set; } = null!;
     public int Porta { get; private set; }
     public string Delimitador { get;}
     public string Id { get; }
     public string? IdServidor { get; private set; }
-    public Action<object> CallBack { get; }
-
-    public ClienteTcp(Action<object> callBack, string id = "", string delimitador = "<EOF>")
+    private event Action<string, object>? AoReceberComandoEvent;
+    private event Action<string>? AoSeDeslogarEvent;
+    private event Action<string>? AoSeLogarEvent;
+    public ClienteTcp(string id = "", string delimitador = "<EOF>")
     {
-        CallBack = callBack;
         Id = string.IsNullOrEmpty(id) ? Guid.NewGuid().ToString() : id;
         Delimitador = string.IsNullOrEmpty(delimitador) ? "<EOF>" : delimitador;
     }
@@ -27,12 +28,16 @@ public class ClienteTcp : IDisposable
         try 
         {
             await _cliente.ConnectAsync(ip, porta);
-            _ = LoopEscutarAsync();
+            if (!_cliente.Connected)
+            {
+                throw new InvalidOperationException("Não foi possível conectar ao servidor.");
+            }
         }
         catch (Exception ex)
         {
             throw new InvalidOperationException("Não foi possível conectar ao servidor.", ex);
         }
+        _ = LoopEscutarAsync();
 
         Pacote msg = new()
         {
@@ -41,12 +46,12 @@ public class ClienteTcp : IDisposable
             IdAutor = Id
         };
 
-        await EnviarAsync(msg);
+        await EnviarPacoteAsync(msg);
         Ip = ip;
         Porta = porta;
         return true;
     }
-    public Task<bool> EnviarParaServidorAsync(object conteudo)
+    public async Task<bool> EnviarParaServidorAsync(object conteudo)
     {
         var pacote = new Pacote
         {
@@ -55,9 +60,9 @@ public class ClienteTcp : IDisposable
             IdAutor = Id,
             Conteudo = conteudo
         };
-        return EnviarAsync(pacote);
+        return await EnviarPacoteAsync(pacote);
     }
-    public Task<bool> EnviarParaClienteAsync(string idCliente, object conteudo)
+    public async Task<bool> EnviarParaClienteAsync(string idCliente, object conteudo)
     {
         var pacote = new Pacote
         {
@@ -67,9 +72,21 @@ public class ClienteTcp : IDisposable
             IdDestino = idCliente,
             Conteudo = conteudo
         };
-        return EnviarAsync(pacote);
+        return await EnviarPacoteAsync(pacote);
     }
-    public void Dispose()
+    public void AoReceber(Action<string, object> objRecebido) => _events.Vincular(
+       () => { AoReceberComandoEvent += objRecebido; },
+       () => { AoReceberComandoEvent -= objRecebido; }
+    );
+    public void AoSeLogar(Action<string> objLogar) => _events.Vincular(
+        () => { AoSeLogarEvent += objLogar; },
+        () => { AoSeLogarEvent -= objLogar; }
+    );
+    public void AoSeDeslogar(Action<string> objDeslogar) => _events.Vincular(
+        () => { AoSeDeslogarEvent += objDeslogar; },
+        () => { AoSeDeslogarEvent -= objDeslogar; }
+    );
+    public async Task DisposeAsync()
     {
         if (_cliente.Connected)
         {
@@ -77,9 +94,11 @@ public class ClienteTcp : IDisposable
             {
                 Tipo = Pacote.Tipos.ParaServer,
                 Subtipo = Pacote.Subtipos.Deslogar,
-                IdAutor = Id
+                IdAutor = Id,
+                IdDestino = Id
             };
-            _ = EnviarAsync(msg);
+            await EnviarPacoteAsync(msg);
+            AoSeDeslogarEvent?.Invoke(IdServidor!);
         }
         _cliente?.Close();
     }
@@ -105,7 +124,7 @@ public class ClienteTcp : IDisposable
             {
                 int finalDoJson = textoAcumulado.IndexOf(Delimitador);
                 string json = textoAcumulado[..finalDoJson];
-                ProcessarPacote(json, _cliente);
+                await ProcessarPacote(json, _cliente);
                 textoAcumulado = textoAcumulado[(finalDoJson + Delimitador.Length)..];
             }
             acumulador.Clear();
@@ -113,7 +132,7 @@ public class ClienteTcp : IDisposable
         }
     }
 
-    internal async Task<bool> EnviarAsync(Pacote pacote)
+    internal async Task<bool> EnviarPacoteAsync(Pacote pacote)
     {
         if (!_cliente.Connected) return false;
 
@@ -124,7 +143,7 @@ public class ClienteTcp : IDisposable
         return true;
     }
 
-    private void ProcessarPacote(string json, TcpClient cliente)
+    private async Task ProcessarPacote(string json, TcpClient cliente)
     {
         int idx = json.IndexOf(Delimitador);
         string jsonPronto;
@@ -150,14 +169,15 @@ public class ClienteTcp : IDisposable
             {
                 case Pacote.Subtipos.Logar:
                     IdServidor = Pacote.IdAutor;
+                    AoSeLogarEvent?.Invoke(IdServidor);
                     break;
 
                 case Pacote.Subtipos.Deslogar:
-                    Dispose();
+                    await DisposeAsync();
                     break;
 
                 case Pacote.Subtipos.Comando:
-                    CallBack(Pacote.Conteudo!);
+                    AoReceberComandoEvent?.Invoke(Pacote.IdAutor, Pacote.Conteudo!);
                     break;
             }
         }
