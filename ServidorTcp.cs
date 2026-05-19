@@ -201,7 +201,7 @@ public class ServidorTcp
                     bool sucesso = Clientes.TryAdd(pacote.IdAutor, cliente);
                     if (!sucesso)
                     {
-                        throw new InvalidOperationException("nao foi caralho");
+                        throw new InvalidOperationException("erro ao adicionar cliente");
                     }
 
                     Pacote pacoteResposta = new()

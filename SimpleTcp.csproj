@@ -12,7 +12,7 @@
 	  <RootNamespace>Jpmsantos81.SimpleTcp</RootNamespace>
 	  <AssemblyName>Jpmsantos81.SimpleTcp</AssemblyName>
 	  
-	  <Version>1.1.0</Version>
+	  <Version>1.1.1</Version>
 	  <Authors>Jpmsantos81</Authors>
 	  <Description>Uma biblioteca que facilita uma conexão TCP de forma simples</Description>
 
@@ -34,7 +34,7 @@
 
 	  <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
 
-	  <PackageReleaseNotes>Atualização massiva: classes de cliente e servidor agora são publicas; exclusão da classe GerenciadorTcp e das classes Genéricas</PackageReleaseNotes>
+	  <PackageReleaseNotes>Correção nas chamadas de exceções</PackageReleaseNotes>
 	  
   </PropertyGroup>
 
